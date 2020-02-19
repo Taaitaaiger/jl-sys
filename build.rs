@@ -1,22 +1,62 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+fn path_exists(path: &str) -> bool {
+    Path::new(path).exists()
+}
+
+fn find_julia() -> Option<String> {
+    if let Ok(path) = env::var("JL_PATH") {
+        return Some(path);
+    }
+
+    if path_exists("/usr/include/julia/julia.h") {
+        return Some("/usr".to_string());
+    }
+
+    let include_path = env::var("CPATH")
+        .or_else(|_| env::var("C_INCLUDE_PATH"));
+
+    if let Ok(paths) = include_path {
+        for path in paths.split(":") {
+            let mut buf = PathBuf::from(path);
+            buf.push("julia.h");
+            if buf.exists() {
+                // Clang already knows how to find julia in this case.
+                return None;
+            }
+        }
+    }
+
+    panic!("Unable to find julia installation. Please install julia or provide the installation path as the JL_PATH environment variable.")
+}
 
 fn main() {
-    let flags = match env::var("JL_PATH") {
-        Ok(path) => {
+    let mut out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    out_path.push("bindings.rs");
+
+    println!("cargo:rerun-if-changed=wrapper.h");
+    println!("cargo:rerun-if-env-changed=JL_PATH");
+
+    if let Ok(_) = env::var("CARGO_FEATURE_DOCS_RS") {
+        println!("cargo:rerun-if-changed=dummy-bindings.rs");
+        std::fs::copy("dummy-bindings.rs", &out_path)
+            .expect("Couldn't create dummy bindings");
+        return;
+    }
+
+    let flags = match find_julia() {
+        Some(path) => {
             let jl_include_path = format!("-I{}/include/julia/", path);
             let jl_lib_path = format!("-L{}/lib/", path);
             println!("cargo:rustc-flags={}", &jl_lib_path);
 
             vec![jl_include_path, jl_lib_path]
-        },
-        _ => {
-            vec![]
         }
+        None => Vec::new(),
     };
 
     println!("cargo:rustc-link-lib=julia");
-    println!("cargo:rerun-if-changed=wrapper.h");
 
     // Only generate bindings if it's used by Jlrs
     let bindings = bindgen::Builder::default()
@@ -106,8 +146,7 @@ fn main() {
         .expect("Unable to generate bindings");
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
-        .write_to_file(out_path.join("bindings.rs"))
+        .write_to_file(&out_path)
         .expect("Couldn't write bindings!");
 }
