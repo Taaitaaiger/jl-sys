@@ -1,16 +1,12 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-fn path_exists(path: &str) -> bool {
-    Path::new(path).exists()
-}
-
 fn find_julia() -> Option<String> {
     if let Ok(path) = env::var("JL_PATH") {
         return Some(path);
     }
 
-    if path_exists("/usr/include/julia/julia.h") {
+    if Path::new("/usr/include/julia/julia.h").exists() {
         return Some("/usr".to_string());
     }
 
