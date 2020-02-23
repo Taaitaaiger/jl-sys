@@ -10,21 +10,10 @@ fn find_julia() -> Option<String> {
         return Some("/usr".to_string());
     }
 
-    let include_path = env::var("CPATH")
-        .or_else(|_| env::var("C_INCLUDE_PATH"));
+    // This message is not displayed to the user unless the compile fails.
+    eprintln!("You can specify the Julia installation path with the JL_PATH environment variable.");
 
-    if let Ok(paths) = include_path {
-        for path in paths.split(":") {
-            let mut buf = PathBuf::from(path);
-            buf.push("julia.h");
-            if buf.exists() {
-                // Clang already knows how to find julia in this case.
-                return None;
-            }
-        }
-    }
-
-    panic!("Unable to find julia installation. Please install julia or provide the installation path as the JL_PATH environment variable.")
+    None
 }
 
 fn main() {
