@@ -1,22 +1,47 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+fn find_julia() -> Option<String> {
+    if let Ok(path) = env::var("JL_PATH") {
+        return Some(path);
+    }
+
+    if Path::new("/usr/include/julia/julia.h").exists() {
+        return Some("/usr".to_string());
+    }
+
+    // This message is not displayed to the user unless the compile fails.
+    eprintln!("You can specify the Julia installation path with the JL_PATH environment variable.");
+
+    None
+}
 
 fn main() {
-    let flags = match env::var("JL_PATH") {
-        Ok(path) => {
+    let mut out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    out_path.push("bindings.rs");
+
+    println!("cargo:rerun-if-changed=wrapper.h");
+    println!("cargo:rerun-if-env-changed=JL_PATH");
+
+    if let Ok(_) = env::var("CARGO_FEATURE_DOCS_RS") {
+        println!("cargo:rerun-if-changed=dummy-bindings.rs");
+        std::fs::copy("dummy-bindings.rs", &out_path)
+            .expect("Couldn't create dummy bindings");
+        return;
+    }
+
+    let flags = match find_julia() {
+        Some(path) => {
             let jl_include_path = format!("-I{}/include/julia/", path);
             let jl_lib_path = format!("-L{}/lib/", path);
             println!("cargo:rustc-flags={}", &jl_lib_path);
 
             vec![jl_include_path, jl_lib_path]
-        },
-        _ => {
-            vec![]
         }
+        None => Vec::new(),
     };
 
     println!("cargo:rustc-link-lib=julia");
-    println!("cargo:rerun-if-changed=wrapper.h");
 
     // Only generate bindings if it's used by Jlrs
     let bindings = bindgen::Builder::default()
@@ -106,8 +131,7 @@ fn main() {
         .expect("Unable to generate bindings");
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
-        .write_to_file(out_path.join("bindings.rs"))
+        .write_to_file(&out_path)
         .expect("Couldn't write bindings!");
 }

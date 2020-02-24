@@ -12,7 +12,13 @@ readme = "README.md"
 keywords = ["Julia", "math", "mathematics", "bindings", "ffi"]
 license = "MIT"
 edition = "2018"
+links = "julia"
 
+[features]
+docs-rs = []
 
 [build-dependencies]
 bindgen = "0.53.1"
+
+[package.metadata.docs.rs]
+features = ["docs-rs"]
