@@ -2,7 +2,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-//! The documentation found on docs.rs corresponds to Julia version 1.3.1, however when
+//! The documentation found on docs.rs corresponds to Julia version 1.4.0, however when
 //! compiled locally, the bindings will match the version installed locally.
 
 use std::ffi::c_void;
