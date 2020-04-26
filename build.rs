@@ -47,6 +47,7 @@ fn main() {
     let bindings = bindgen::Builder::default()
         .clang_args(&flags)
         .header("wrapper.h")
+        .size_t_is_usize(true)
         // Initializing and stopping
         .whitelist_function("jl_init__threading")
         .whitelist_function("jl_is_initialized")
@@ -90,6 +91,12 @@ fn main() {
         .whitelist_function("jl_symbol_n")
         .whitelist_function("jl_get_global")
         .whitelist_function("jl_set_global")
+        // structs
+        .whitelist_function("jl_field_index")
+        .whitelist_function("jl_get_nth_field")
+        .whitelist_function("jl_get_nth_field_noalloc")
+        .whitelist_function("jl_get_field")
+        .whitelist_function("jl_field_isdefined")
         // n-dimensional arrays
         .whitelist_function("jl_apply_array_type")
         .whitelist_function("jl_array_eltype")
@@ -126,6 +133,16 @@ fn main() {
         .whitelist_var("jl_datatype_type")
         .whitelist_var("jl_array_typename")
         .whitelist_var("jl_module_type")
+        .whitelist_var("jl_nothing")
+        .whitelist_var("jl_tuple_typename")
+        .whitelist_var("jl_namedtuple_typename")
+        .whitelist_var("jl_simplevector_type")
+        .whitelist_var("jl_uniontype_type")
+        .whitelist_var("jl_tvar_type")
+        .whitelist_var("jl_unionall_type")
+        .whitelist_var("jl_typename_type")
+        .whitelist_var("jl_symbol_type")
+        .whitelist_var("jl_task_type")
         .rustfmt_bindings(true)
         .generate()
         .expect("Unable to generate bindings");
