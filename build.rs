@@ -1,8 +1,12 @@
+#![allow(unused_imports)]
+
 use std::env;
+use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(target_os = "unix")]
 fn find_julia() -> Option<String> {
-    if let Ok(path) = env::var("JL_PATH") {
+    if let Ok(path) = env::var("JULIA_DIR") {
         return Some(path);
     }
 
@@ -10,10 +14,44 @@ fn find_julia() -> Option<String> {
         return Some("/usr".to_string());
     }
 
-    // This message is not displayed to the user unless the compile fails.
-    eprintln!("You can specify the Julia installation path with the JL_PATH environment variable.");
-
     None
+}
+
+#[cfg(target_os = "windows")]
+fn flags() -> Vec<String> {
+    let julia_dir = env::var("JULIA_DIR").expect("Julia cannot be found. You can specify the Julia installation path with the JULIA_DIR environment variable.");
+    let cygwin_path = env::var("CYGWIN_DIR").expect("Cygwin cannot be found. You can specify the Cygwin installation path with the CYGWIN_DIR environment variable.");
+
+    let jl_include_path = format!("-I{}/include/julia/", julia_dir);
+    let cygwin_include_path = format!("-I{}/usr/include", cygwin_path);
+    let w32api_include_path = format!("-I{}/usr/include/w32api", cygwin_path);
+    let jl_lib_path = format!("-L{}/bin/", julia_dir);
+
+    println!("cargo:rustc-flags={}", &jl_lib_path);
+    println!("cargo:rustc-link-lib=julia");
+    vec![
+        jl_include_path,
+        cygwin_include_path,
+        w32api_include_path,
+        jl_lib_path,
+    ]
+}
+
+#[cfg(target_os = "unix")]
+fn flags() -> Vec<String> {
+    let flags = match find_julia() {
+        Some(julia_dir) => {
+            let jl_include_path = format!("-I{}/include/julia/", julia_dir);
+            let jl_lib_path = format!("-L{}/lib/", julia_dir);
+
+            println!("cargo:rustc-flags={}", &jl_lib_path);
+            vec![jl_include_path, jl_lib_path]
+        }
+        None => Vec::new(),
+    };
+
+    println!("cargo:rustc-link-lib=julia");
+    flags
 }
 
 fn main() {
@@ -21,27 +59,16 @@ fn main() {
     out_path.push("bindings.rs");
 
     println!("cargo:rerun-if-changed=wrapper.h");
-    println!("cargo:rerun-if-env-changed=JL_PATH");
+    println!("cargo:rerun-if-env-changed=JULIA_DIR");
+    println!("cargo:rerun-if-env-changed=CYGWIN_DIR");
 
-    if let Ok(_) = env::var("CARGO_FEATURE_DOCS_RS") {
-        println!("cargo:rerun-if-changed=dummy-bindings.rs");
-        std::fs::copy("dummy-bindings.rs", &out_path)
-            .expect("Couldn't create dummy bindings");
+    if env::var("CARGO_FEATURE_DOCS_RS").is_ok() {
+        fs::copy("dummy-bindings.rs", &out_path)
+            .expect("Couldn't create bindings from dummy bindings.");
         return;
     }
 
-    let flags = match find_julia() {
-        Some(path) => {
-            let jl_include_path = format!("-I{}/include/julia/", path);
-            let jl_lib_path = format!("-L{}/lib/", path);
-            println!("cargo:rustc-flags={}", &jl_lib_path);
-
-            vec![jl_include_path, jl_lib_path]
-        }
-        None => Vec::new(),
-    };
-
-    println!("cargo:rustc-link-lib=julia");
+    let flags = flags();
 
     // Only generate bindings if it's used by Jlrs
     let bindings = bindgen::Builder::default()
