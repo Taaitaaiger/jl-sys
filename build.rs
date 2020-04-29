@@ -4,7 +4,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[cfg(target_os = "unix")]
+#[cfg(target_os = "linux")]
 fn find_julia() -> Option<String> {
     if let Ok(path) = env::var("JULIA_DIR") {
         return Some(path);
@@ -37,7 +37,7 @@ fn flags() -> Vec<String> {
     ]
 }
 
-#[cfg(target_os = "unix")]
+#[cfg(target_os = "linux")]
 fn flags() -> Vec<String> {
     let flags = match find_julia() {
         Some(julia_dir) => {
