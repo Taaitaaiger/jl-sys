@@ -218,6 +218,18 @@ pub unsafe fn jl_fieldref_noalloc(s: *mut jl_value_t, i: usize) -> *mut jl_value
     jl_get_nth_field_noalloc(s, i)
 }
 
+/*
+STATIC_INLINE int jl_isbits(void *t) JL_NOTSAFEPOINT // corresponding to isbits() in julia
+{
+    return (jl_is_datatype(t) && ((jl_datatype_t*)t)->isbitstype);
+}
+*/
+
+#[inline(always)]
+pub unsafe fn jl_isbits(t: *mut c_void) -> bool {
+    jl_is_datatype(t.cast()) && (&*(t.cast::<jl_datatype_t>())).isbitstype != 0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
