@@ -124,6 +124,12 @@ fn main() {
         .whitelist_function("jl_get_nth_field_noalloc")
         .whitelist_function("jl_get_field")
         .whitelist_function("jl_field_isdefined")
+        // tuples
+        .whitelist_function("jl_apply_type")
+        .whitelist_function("jl_new_structv")
+        .whitelist_function("jl_tupletype_fill")
+        .whitelist_function("jl_apply_tuple_type_v")
+        .whitelist_function("jl_new_struct_uninit")
         // n-dimensional arrays
         .whitelist_function("jl_apply_array_type")
         .whitelist_function("jl_array_eltype")
