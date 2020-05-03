@@ -18,11 +18,13 @@ pub unsafe fn jl_init() {
 
 #[inline(always)]
 pub unsafe fn jl_astaggedvalue(v: *mut jl_value_t) -> *mut jl_taggedvalue_t {
-    if v == null_mut() {
-        return null_mut();
+    let v_usize = v as *mut char as usize;
+    let sz = size_of::<jl_taggedvalue_t>();
+    if v_usize <= sz {
+        panic!()
     }
 
-    (v as *mut char as usize - size_of::<jl_taggedvalue_t>()) as *mut jl_taggedvalue_t
+    (v_usize - sz) as *mut jl_taggedvalue_t
 }
 
 #[inline(always)]
