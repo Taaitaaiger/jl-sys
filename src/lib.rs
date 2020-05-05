@@ -223,6 +223,14 @@ pub unsafe fn jl_isbits(t: *mut c_void) -> bool {
     jl_is_datatype(t.cast()) && (&*(t.cast::<jl_datatype_t>())).isbitstype != 0
 }
 
+pub unsafe fn jl_get_fieldtypes(st: *mut jl_datatype_t) -> *mut jl_svec_t {
+    if (&*st).types.is_null() {
+        jl_compute_fieldtypes(st)
+    } else {
+        (&*st).types
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

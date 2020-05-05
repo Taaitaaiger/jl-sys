@@ -124,6 +124,7 @@ fn main() {
         .whitelist_function("jl_get_nth_field_noalloc")
         .whitelist_function("jl_get_field")
         .whitelist_function("jl_field_isdefined")
+        .whitelist_function("jl_compute_fieldtypes")
         // tuples
         .whitelist_function("jl_apply_type")
         .whitelist_function("jl_new_structv")
@@ -142,6 +143,7 @@ fn main() {
         // strings
         .whitelist_function("jl_pchar_to_string")
         .whitelist_function("jl_typeof_str")
+        .whitelist_function("jl_typename_str")
         // modules
         .whitelist_var("jl_base_module")
         .whitelist_var("jl_core_module")
