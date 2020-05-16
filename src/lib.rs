@@ -7,7 +7,6 @@
 
 use std::ffi::c_void;
 use std::mem::size_of;
-use std::ptr::{null, null_mut};
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
@@ -20,37 +19,22 @@ pub unsafe fn jl_init() {
 pub unsafe fn jl_astaggedvalue(v: *mut jl_value_t) -> *mut jl_taggedvalue_t {
     let v_usize = v as *mut char as usize;
     let sz = size_of::<jl_taggedvalue_t>();
-    if v_usize <= sz {
-        panic!()
-    }
 
     (v_usize - sz) as *mut jl_taggedvalue_t
 }
 
 #[inline(always)]
 pub unsafe fn jl_valueof(v: *mut jl_value_t) -> *mut jl_value_t {
-    if v == null_mut() {
-        return null_mut();
-    }
-
     (v as *mut char as usize + size_of::<jl_taggedvalue_t>()) as *mut jl_value_t
 }
 
 #[inline(always)]
 pub unsafe fn jl_typeof(v: *mut jl_value_t) -> *mut jl_value_t {
-    if v == null_mut() {
-        return null_mut();
-    }
-
     ((*jl_astaggedvalue(v)).__bindgen_anon_1.header as usize & !15usize) as *mut jl_value_t
 }
 
 #[inline(always)]
 pub unsafe fn jl_array_data(array: *mut jl_value_t) -> *mut c_void {
-    if array == null_mut() {
-        return null_mut();
-    }
-
     (&*(array as *mut jl_array_t)).data as *mut std::ffi::c_void
 }
 
@@ -75,8 +59,18 @@ pub unsafe fn jl_is_namedtuple(v: *mut jl_value_t) -> bool {
 }
 
 #[inline(always)]
+pub unsafe fn jl_is_immutable(v: *mut jl_value_t) -> bool {
+    (&*jl_typeof(v).cast::<jl_datatype_t>()).mutabl == 0
+}
+
+#[inline(always)]
 pub unsafe fn jl_is_svec(v: *mut jl_value_t) -> bool {
     jl_typeis(v, jl_simplevector_type)
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_uniontype(v: *mut jl_value_t) -> bool {
+    jl_typeis(v, jl_uniontype_type)
 }
 
 #[inline(always)]
@@ -127,7 +121,7 @@ pub unsafe fn jl_array_ndims(array: *mut jl_array_t) -> u16 {
 #[inline(always)]
 pub unsafe fn jl_array_dim(array: *mut jl_array_t, i: usize) -> usize {
     let x = &(&*array).nrows as *const usize;
-    *x.offset(i as isize)
+    *x.add(i)
 }
 
 #[inline(always)]
@@ -148,28 +142,16 @@ pub unsafe fn jl_array_nrows(array: *mut jl_array_t) -> usize {
 
 #[inline(always)]
 pub unsafe fn jl_string_data(s: *mut jl_value_t) -> *const u8 {
-    if s == null_mut() {
-        return null();
-    }
-
-    (s as *const u8).offset(size_of::<usize>() as _)
+    (s as *const u8).add(size_of::<usize>())
 }
 
 #[inline(always)]
 pub unsafe fn jl_string_len(s: *mut jl_value_t) -> usize {
-    if s == null_mut() {
-        return 0;
-    }
-
     *(s as *const usize)
 }
 
 #[inline(always)]
 pub unsafe fn jl_field_names(st: *mut jl_datatype_t) -> *mut jl_svec_t {
-    if st.is_null() {
-        return null_mut();
-    }
-
     let st = &mut *st;
     if !st.names.is_null() {
         return st.names;
@@ -185,7 +167,7 @@ pub unsafe fn jl_svec_len(t: *mut jl_svec_t) -> usize {
 
 #[inline(always)]
 pub unsafe fn jl_svec_data(t: *mut jl_svec_t) -> *mut *mut jl_value_t {
-    t.cast::<u8>().offset(size_of::<jl_svec_t>() as _).cast()
+    t.cast::<u8>().add(size_of::<jl_svec_t>()).cast()
 }
 
 macro_rules! llt_align {
@@ -197,17 +179,37 @@ macro_rules! llt_align {
 #[inline(always)]
 pub unsafe fn jl_symbol_name(s: *mut jl_sym_t) -> *mut u8 {
     s.cast::<u8>()
-        .offset(llt_align!(size_of::<jl_sym_t>(), size_of::<*mut c_void>()) as isize)
+        .add(llt_align!(size_of::<jl_sym_t>(), size_of::<*mut c_void>()))
 }
 
 #[inline(always)]
-pub unsafe fn jl_datatype_nfields(t: *mut jl_value_t) -> u32 {
-    (&*(&*(t as *mut jl_datatype_t)).layout).nfields
+pub unsafe fn jl_datatype_size(t: *mut jl_datatype_t) -> i32 {
+    (&*(t)).size
+}
+
+#[inline(always)]
+pub unsafe fn jl_datatype_align(t: *mut jl_datatype_t) -> u16 {
+    (&*(&*(t)).layout).alignment
+}
+
+#[inline(always)]
+pub unsafe fn jl_datatype_nbits(t: *mut jl_datatype_t) -> i32 {
+    (&*(t)).size * 8
+}
+
+#[inline(always)]
+pub unsafe fn jl_datatype_nfields(t: *mut jl_datatype_t) -> u32 {
+    (&*(&*(t)).layout).nfields
 }
 
 #[inline(always)]
 pub unsafe fn jl_nfields(v: *mut jl_value_t) -> u32 {
-    jl_datatype_nfields(jl_typeof(v))
+    jl_datatype_nfields(jl_typeof(v).cast())
+}
+
+#[inline(always)]
+pub unsafe fn jl_datatype_isinlinealloc(t: *mut jl_datatype_t) -> u8 {
+    (&*(t)).isinlinealloc
 }
 
 #[inline(always)]
@@ -221,16 +223,131 @@ pub unsafe fn jl_fieldref_noalloc(s: *mut jl_value_t, i: usize) -> *mut jl_value
 }
 
 #[inline(always)]
-pub unsafe fn jl_isbits(t: *mut c_void) -> bool {
-    jl_is_datatype(t.cast()) && (&*(t.cast::<jl_datatype_t>())).isbitstype != 0
-}
-
 pub unsafe fn jl_get_fieldtypes(st: *mut jl_datatype_t) -> *mut jl_svec_t {
     if (&*st).types.is_null() {
         jl_compute_fieldtypes(st)
     } else {
         (&*st).types
     }
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_kind(v: *mut jl_value_t) -> bool {
+    v == jl_uniontype_type.cast()
+        || v == jl_datatype_type.cast()
+        || v == jl_unionall_type.cast()
+        || v == jl_typeofbottom_type.cast()
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_type(v: *mut jl_value_t) -> bool {
+    jl_is_kind(jl_typeof(v))
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_primitivetype(v: *mut jl_value_t) -> bool {
+    jl_is_datatype(v)
+        && jl_is_immutable(v)
+        && !(&*v.cast::<jl_datatype_t>()).layout.is_null()
+        && jl_datatype_nfields(v.cast()) == 0
+        && jl_datatype_size(v.cast()) > 0
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_structtype(v: *mut jl_value_t) -> bool {
+    jl_is_datatype(v)
+        && jl_is_immutable(v)
+        && (&*v.cast::<jl_datatype_t>()).abstract_ == 0
+        && jl_datatype_nfields(v.cast()) == 0
+        && jl_datatype_size(v.cast()) > 0
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_datatype_singleton(v: *mut jl_datatype_t) -> bool {
+    !(&*v).instance.is_null()
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_abstracttype(v: *mut c_void) -> bool {
+    jl_is_datatype(v.cast()) && (&*v.cast::<jl_datatype_t>()).abstract_ > 0
+}
+
+#[inline(always)]
+pub unsafe fn jl_isbits(t: *mut c_void) -> bool {
+    jl_is_datatype(t.cast()) && (&*t.cast::<jl_datatype_t>()).isbitstype != 0
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_cpointer_type(v: *mut c_void) -> bool {
+    jl_is_datatype(v.cast())
+        && (&*v.cast::<jl_datatype_t>()).name
+            == (&*(&*jl_pointer_type).body.cast::<jl_datatype_t>()).name
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_addrspace_ptr_type(v: *mut c_void) -> bool {
+    jl_is_datatype(v.cast()) && (&*v.cast::<jl_datatype_t>()).name == jl_addrspace_pointer_typename
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_abstract_ref_type(v: *mut c_void) -> bool {
+    jl_is_datatype(v.cast())
+        && (&*v.cast::<jl_datatype_t>()).name
+            == (&*(&*jl_ref_type).body.cast::<jl_datatype_t>()).name
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_tuple_type(v: *mut c_void) -> bool {
+    jl_is_datatype(v.cast()) && (&*v.cast::<jl_datatype_t>()).name == jl_tuple_typename
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_namedtuple_type(v: *mut c_void) -> bool {
+    jl_is_datatype(v.cast()) && (&*v.cast::<jl_datatype_t>()).name == jl_namedtuple_typename
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_vecelement_type(v: *mut c_void) -> bool {
+    jl_is_datatype(v.cast()) && (&*v.cast::<jl_datatype_t>()).name == jl_vecelement_typename
+}
+
+#[inline(always)]
+pub unsafe fn jl_is_type_type(v: *mut c_void) -> bool {
+    jl_is_datatype(v.cast())
+        && (&*v.cast::<jl_datatype_t>()).name
+            == (&*(&*jl_type_type).body.cast::<jl_datatype_t>()).name
+}
+
+#[inline(always)]
+pub unsafe fn jl_array_isbitsunion(a: *mut jl_array_t) -> bool {
+    (&*a).flags.ptrarray() > 0 && jl_is_uniontype(jl_tparam0(jl_typeof(a.cast()).cast()))
+}
+
+#[inline(always)]
+pub unsafe fn jl_nparams(t: *mut jl_datatype_t) -> usize {
+    jl_svec_len((&*t).parameters)
+}
+
+#[inline(always)]
+pub unsafe fn jl_tparam0(t: *mut jl_datatype_t) -> *mut jl_value_t {
+    jl_svecref((&*t).parameters.cast(), 0)
+}
+
+#[inline(always)]
+pub unsafe fn jl_tparam1(t: *mut jl_datatype_t) -> *mut jl_value_t {
+    jl_svecref((&*t).parameters.cast(), 1)
+}
+
+#[inline(always)]
+pub unsafe fn jl_tparam(t: *mut jl_datatype_t, i: usize) -> *mut jl_value_t {
+    jl_svecref((&*t).parameters.cast(), i)
+}
+
+#[inline(always)]
+pub unsafe fn jl_svecref(t: *mut c_void, i: usize) -> *mut jl_value_t {
+    assert!(jl_typeis(t.cast(), jl_simplevector_type));
+    assert!(i < jl_svec_len(t.cast()));
+    std::slice::from_raw_parts_mut(jl_svec_data(t.cast()), jl_svec_len(t.cast()))[i]
 }
 
 #[cfg(test)]
